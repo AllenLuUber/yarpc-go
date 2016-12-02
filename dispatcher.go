@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/yarpc/internal"
 	"go.uber.org/yarpc/internal/clientconfig"
 	"go.uber.org/yarpc/internal/errors"
 	"go.uber.org/yarpc/internal/request"
@@ -94,8 +95,11 @@ type InboundMiddleware struct {
 
 // NewDispatcher builds a new Dispatcher using the specified Config.
 func NewDispatcher(cfg Config) Dispatcher {
-	if cfg.Name == "" {
-		panic("a service name is required")
+	if name == "" { // nicer error msg for empty name.
+		return fmt.Errorf("a service name is required")
+	}
+	if err := internal.ValidateServiceName(cfg.Name); err != nil {
+		panic(err)
 	}
 
 	return dispatcher{
