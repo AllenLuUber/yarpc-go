@@ -20,8 +20,10 @@
 
 package internal
 
-import "fmt"
-import "regexp"
+import (
+	"fmt"
+	"regexp"
+)
 
 var (
 	// Must starts with [a-z].
