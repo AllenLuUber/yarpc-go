@@ -95,8 +95,8 @@ type InboundMiddleware struct {
 
 // NewDispatcher builds a new Dispatcher using the specified Config.
 func NewDispatcher(cfg Config) Dispatcher {
-	if name == "" { // nicer error msg for empty name.
-		return fmt.Errorf("a service name is required")
+	if cfg.Name == "" { // nicer error msg for empty name.
+		panic("a service name is required")
 	}
 	if err := internal.ValidateServiceName(cfg.Name); err != nil {
 		panic(err)
