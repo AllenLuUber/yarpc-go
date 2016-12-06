@@ -56,6 +56,8 @@ type Dispatcher interface {
 	//
 	// Blocks until the RPC has stopped.
 	Stop() error
+
+	ServiceName() string
 }
 
 // Config specifies the parameters of a new RPC constructed via New.
@@ -355,4 +357,8 @@ func (d dispatcher) Stop() error {
 	}
 
 	return nil
+}
+
+func (d dispatcher) ServiceName() string {
+	return d.Name
 }
