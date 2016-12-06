@@ -51,12 +51,18 @@ type Registrant struct {
 	HandlerSpec HandlerSpec
 }
 
+type ServiceProcedureInfo struct {
+	Service   string
+	Procedure string
+	Type      Type
+}
+
 // Registry maintains and provides access to a collection of procedures and
 // their handlers.
 type Registry interface {
 	// ServiceProcedures returns a list of services and their procedures that
 	// have been registered so far.
-	ServiceProcedures() []ServiceProcedure
+	ServiceProcedures() []ServiceProcedureInfo
 
 	// Choose decides a handler based on a context and transport request
 	// metadata, or returns an UnrecognizedProcedureError if no handler exists
@@ -107,12 +113,16 @@ func (m MapRegistry) Register(rs []Registrant) {
 
 // ServiceProcedures returns a list of services and their procedures that
 // have been registered so far.
-func (m MapRegistry) ServiceProcedures() []ServiceProcedure {
-	procs := make([]ServiceProcedure, 0, len(m.entries))
-	for k := range m.entries {
-		procs = append(procs, k)
+func (m MapRegistry) ServiceProcedures() []ServiceProcedureInfo {
+	procs := make([]ServiceProcedureInfo, 0, len(m.entries))
+	for k, v := range m.entries {
+		procs = append(procs, ServiceProcedureInfo{
+			Service:   k.Service,
+			Procedure: k.Procedure,
+			Type:      v.Type(),
+		})
 	}
-	sort.Sort(byServiceProcedure(procs))
+	sort.Sort(byServiceProcedureInfo(procs))
 	return procs
 }
 
@@ -139,19 +149,19 @@ func (m MapRegistry) Choose(ctx context.Context, req *Request) (HandlerSpec, err
 	return m.ChooseProcedure(req.Service, req.Procedure)
 }
 
-type byServiceProcedure []ServiceProcedure
+type byServiceProcedureInfo []ServiceProcedureInfo
 
-func (sp byServiceProcedure) Len() int {
+func (sp byServiceProcedureInfo) Len() int {
 	return len(sp)
 }
 
-func (sp byServiceProcedure) Less(i int, j int) bool {
+func (sp byServiceProcedureInfo) Less(i int, j int) bool {
 	if sp[i].Service == sp[j].Service {
 		return sp[i].Procedure < sp[j].Procedure
 	}
 	return sp[i].Service < sp[j].Service
 }
 
-func (sp byServiceProcedure) Swap(i int, j int) {
+func (sp byServiceProcedureInfo) Swap(i int, j int) {
 	sp[i], sp[j] = sp[j], sp[i]
 }

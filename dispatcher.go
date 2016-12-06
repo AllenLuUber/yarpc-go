@@ -100,7 +100,7 @@ func NewDispatcher(cfg Config) Dispatcher {
 		panic("a service name is required")
 	}
 
-	return dispatcher{
+	return &dispatcher{
 		Name:              cfg.Name,
 		Registrar:         transport.NewMapRegistry(cfg.Name),
 		inbounds:          cfg.Inbounds,
