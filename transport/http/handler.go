@@ -27,6 +27,8 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/net/trace"
+
 	"go.uber.org/yarpc/internal/errors"
 	"go.uber.org/yarpc/internal/request"
 	"go.uber.org/yarpc/transport"
@@ -50,6 +52,12 @@ type handler struct {
 
 func (h handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	start := time.Now()
+
+	defaultHandler, pattern := http.DefaultServeMux.Handler(req)
+	if pattern != "" {
+		defaultHandler.ServeHTTP(w, req)
+		return
+	}
 
 	defer req.Body.Close()
 	if req.Method != "POST" {
@@ -93,6 +101,14 @@ func (h handler) callHandler(w http.ResponseWriter, req *http.Request, start tim
 
 	ctx, span := h.createSpan(ctx, req, treq, start)
 
+	tr := trace.New(treq.Service, treq.Procedure)
+	tr.LazyPrintf("caller: %s", treq.Caller)
+	tr.LazyPrintf("encoding: %s", treq.Encoding)
+	for k, v := range treq.Headers.Items() {
+		tr.LazyPrintf("request header - %s: %s", k, v)
+	}
+	ctx = trace.NewContext(ctx, tr)
+
 	treq, err := v.Validate(ctx)
 	if err != nil {
 		return err
@@ -106,6 +122,7 @@ func (h handler) callHandler(w http.ResponseWriter, req *http.Request, start tim
 	switch spec.Type() {
 	case transport.Unary:
 		defer span.Finish()
+		defer tr.Finish()
 
 		ctx, cancel := v.ParseTTL(ctx, popHeader(req.Header, TTLMSHeader))
 		defer cancel()
@@ -114,7 +131,8 @@ func (h handler) callHandler(w http.ResponseWriter, req *http.Request, start tim
 		if err != nil {
 			return err
 		}
-		err = internal.SafelyCallUnaryHandler(ctx, spec.Unary(), start, treq, newResponseWriter(w))
+		err = internal.SafelyCallUnaryHandler(ctx, spec.Unary(), start, treq,
+			newResponseWriter(w, tr))
 
 	case transport.Oneway:
 		treq, err = v.ValidateOneway(ctx)
@@ -125,6 +143,14 @@ func (h handler) callHandler(w http.ResponseWriter, req *http.Request, start tim
 
 	default:
 		err = errors.UnsupportedTypeError{Transport: "HTTP", Type: string(spec.Type())}
+	}
+
+	for k, v := range treq.Headers.Items() {
+		tr.LazyPrintf("request header - %s: %s", k, v)
+	}
+
+	if err != nil {
+		tr.SetError()
 	}
 
 	return updateSpanWithErr(span, err)
@@ -192,11 +218,12 @@ func (h handler) createSpan(ctx context.Context, req *http.Request, treq *transp
 
 // responseWriter adapts a http.ResponseWriter into a transport.ResponseWriter.
 type responseWriter struct {
-	w http.ResponseWriter
+	w  http.ResponseWriter
+	tr trace.Trace
 }
 
-func newResponseWriter(w http.ResponseWriter) responseWriter {
-	return responseWriter{w: w}
+func newResponseWriter(w http.ResponseWriter, tr trace.Trace) responseWriter {
+	return responseWriter{w: w, tr: tr}
 }
 
 func (rw responseWriter) Write(s []byte) (int, error) {
@@ -204,6 +231,12 @@ func (rw responseWriter) Write(s []byte) (int, error) {
 }
 
 func (rw responseWriter) AddHeaders(h transport.Headers) {
+	if rw.tr != nil {
+		for k, v := range h.Items() {
+			rw.tr.LazyPrintf("response header - %s: %s", k, v)
+		}
+	}
+
 	applicationHeaders.ToHTTPHeaders(h, rw.w.Header())
 }
 
