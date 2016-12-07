@@ -24,6 +24,7 @@ import (
 	"context"
 	"sort"
 
+	"go.uber.org/yarpc/internal/debug"
 	"go.uber.org/yarpc/internal/errors"
 )
 
@@ -39,6 +40,12 @@ type ServiceProcedure struct {
 	Procedure string
 }
 
+type HandlerSpecSignature struct {
+	HandlerSpec HandlerSpec
+	Encoding    string
+	Signature   string
+}
+
 // Registrant specifies a single handler registered against the registry.
 type Registrant struct {
 	// Service name or empty to use the default service name.
@@ -49,12 +56,9 @@ type Registrant struct {
 
 	// HandlerSpec specifiying which handler and rpc type.
 	HandlerSpec HandlerSpec
-}
 
-type ServiceProcedureInfo struct {
-	Service   string
-	Procedure string
-	Type      Type
+	Encoding  string
+	Signature string
 }
 
 // Registry maintains and provides access to a collection of procedures and
@@ -62,13 +66,15 @@ type ServiceProcedureInfo struct {
 type Registry interface {
 	// ServiceProcedures returns a list of services and their procedures that
 	// have been registered so far.
-	ServiceProcedures() []ServiceProcedureInfo
+	ServiceProcedures() []ServiceProcedure
 
 	// Choose decides a handler based on a context and transport request
 	// metadata, or returns an UnrecognizedProcedureError if no handler exists
 	// for the request.  This is the interface for use in inbound transports to
 	// select a handler for a request.
 	Choose(ctx context.Context, req *Request) (HandlerSpec, error)
+
+	DebugProcedures() []debug.Procedure
 }
 
 // Registrar provides access to a collection of procedures and their handlers.
@@ -83,7 +89,7 @@ type Registrar interface {
 // procedures.
 type MapRegistry struct {
 	defaultService string
-	entries        map[ServiceProcedure]HandlerSpec
+	entries        map[ServiceProcedure]HandlerSpecSignature
 }
 
 // NewMapRegistry builds a new MapRegistry that uses the given name as the
@@ -91,7 +97,7 @@ type MapRegistry struct {
 func NewMapRegistry(defaultService string) MapRegistry {
 	return MapRegistry{
 		defaultService: defaultService,
-		entries:        make(map[ServiceProcedure]HandlerSpec),
+		entries:        make(map[ServiceProcedure]HandlerSpecSignature),
 	}
 }
 
@@ -107,22 +113,32 @@ func (m MapRegistry) Register(rs []Registrant) {
 		}
 
 		sp := ServiceProcedure{r.Service, r.Procedure}
-		m.entries[sp] = r.HandlerSpec
+		m.entries[sp] = HandlerSpecSignature{r.HandlerSpec, r.Encoding, r.Signature}
 	}
 }
 
 // ServiceProcedures returns a list of services and their procedures that
 // have been registered so far.
-func (m MapRegistry) ServiceProcedures() []ServiceProcedureInfo {
-	procs := make([]ServiceProcedureInfo, 0, len(m.entries))
+func (m MapRegistry) ServiceProcedures() []ServiceProcedure {
+	procs := make([]ServiceProcedure, 0, len(m.entries))
+	for k := range m.entries {
+		procs = append(procs, k)
+	}
+	sort.Sort(byServiceProcedure(procs))
+	return procs
+}
+
+func (m MapRegistry) DebugProcedures() []debug.Procedure {
+	procs := make([]debug.Procedure, 0, len(m.entries))
 	for k, v := range m.entries {
-		procs = append(procs, ServiceProcedureInfo{
+		procs = append(procs, debug.Procedure{
 			Service:   k.Service,
-			Procedure: k.Procedure,
-			Type:      v.Type(),
+			Name:      k.Procedure,
+			Flavor:    v.HandlerSpec.Type().String(),
+			Encoding:  v.Encoding,
+			Signature: v.Signature,
 		})
 	}
-	sort.Sort(byServiceProcedureInfo(procs))
 	return procs
 }
 
@@ -134,7 +150,7 @@ func (m MapRegistry) ChooseProcedure(service, procedure string) (HandlerSpec, er
 	}
 
 	if spec, ok := m.entries[ServiceProcedure{service, procedure}]; ok {
-		return spec, nil
+		return spec.HandlerSpec, nil
 	}
 
 	return HandlerSpec{}, errors.UnrecognizedProcedureError{
@@ -149,19 +165,19 @@ func (m MapRegistry) Choose(ctx context.Context, req *Request) (HandlerSpec, err
 	return m.ChooseProcedure(req.Service, req.Procedure)
 }
 
-type byServiceProcedureInfo []ServiceProcedureInfo
+type byServiceProcedure []ServiceProcedure
 
-func (sp byServiceProcedureInfo) Len() int {
+func (sp byServiceProcedure) Len() int {
 	return len(sp)
 }
 
-func (sp byServiceProcedureInfo) Less(i int, j int) bool {
+func (sp byServiceProcedure) Less(i int, j int) bool {
 	if sp[i].Service == sp[j].Service {
 		return sp[i].Procedure < sp[j].Procedure
 	}
 	return sp[i].Service < sp[j].Service
 }
 
-func (sp byServiceProcedureInfo) Swap(i int, j int) {
+func (sp byServiceProcedure) Swap(i int, j int) {
 	sp[i], sp[j] = sp[j], sp[i]
 }
