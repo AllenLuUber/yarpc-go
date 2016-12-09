@@ -20,7 +20,11 @@
 
 package transport
 
-import "context"
+import (
+	"context"
+
+	"go.uber.org/yarpc/internal/debug"
+)
 
 // UnaryOutboundMiddleware defines transport-level middleware for
 // `UnaryOutbound`s.
@@ -84,6 +88,10 @@ func (fo unaryOutboundWithMiddleware) Stop() error {
 
 func (fo unaryOutboundWithMiddleware) Call(ctx context.Context, request *Request) (*Response, error) {
 	return fo.f.Call(ctx, request, fo.o)
+}
+
+func (fo unaryOutboundWithMiddleware) Debug() debug.Outbound {
+	return fo.o.Debug()
 }
 
 type nopUnaryOutboundMiddleware struct{}
@@ -153,6 +161,10 @@ func (fo onewayOutboundWithMiddleware) Stop() error {
 
 func (fo onewayOutboundWithMiddleware) CallOneway(ctx context.Context, request *Request) (Ack, error) {
 	return fo.f.CallOneway(ctx, request, fo.o)
+}
+
+func (fo onewayOutboundWithMiddleware) Debug() debug.Outbound {
+	return fo.o.Debug()
 }
 
 type nopOnewayOutboundMiddleware struct{}

@@ -23,6 +23,7 @@ package peer
 import (
 	"context"
 
+	"go.uber.org/yarpc/internal/debug"
 	"go.uber.org/yarpc/transport"
 )
 
@@ -38,6 +39,8 @@ type Chooser interface {
 
 	// Choose a Peer for the next call, block until a peer is available (or timeout)
 	Choose(context.Context, *transport.Request) (Peer, error)
+
+	Debug() []debug.Peer
 }
 
 // List listens to adds and removes of Peers from a PeerProvider

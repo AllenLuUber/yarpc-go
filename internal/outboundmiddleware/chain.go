@@ -23,6 +23,7 @@ package outboundmiddleware
 import (
 	"context"
 
+	"go.uber.org/yarpc/internal/debug"
 	"go.uber.org/yarpc/transport"
 )
 
@@ -75,6 +76,10 @@ func (x unaryChainExec) Call(ctx context.Context, request *transport.Request) (*
 	return next.Call(ctx, request, x)
 }
 
+func (x unaryChainExec) Debug() debug.Outbound {
+	return x.Final.Debug()
+}
+
 // OnewayChain combines a series of `OnewayOutboundMiddleware`s into a single `OnewayOutboundMiddleware`.
 func OnewayChain(middleware ...transport.OnewayOutboundMiddleware) transport.OnewayOutboundMiddleware {
 	switch len(middleware) {
@@ -122,4 +127,8 @@ func (x onewayChainExec) CallOneway(ctx context.Context, request *transport.Requ
 	next := x.Chain[0]
 	x.Chain = x.Chain[1:]
 	return next.CallOneway(ctx, request, x)
+}
+
+func (x onewayChainExec) Debug() debug.Outbound {
+	return x.Final.Debug()
 }
