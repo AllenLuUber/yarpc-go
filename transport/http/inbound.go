@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 
+	"go.uber.org/yarpc/internal/debug"
 	"go.uber.org/yarpc/internal/errors"
 	intnet "go.uber.org/yarpc/internal/net"
 	"go.uber.org/yarpc/transport"
@@ -138,4 +139,17 @@ func (i *Inbound) Addr() net.Addr {
 	}
 
 	return listener.Addr()
+}
+
+func (i *Inbound) Debug() debug.Inbound {
+	state := "Stopped"
+	if i.server != nil {
+		state = "Started"
+	}
+	return debug.Inbound{
+		Transport: "http",
+		Endpoint:  i.Addr().String(),
+		Peer:      "N/A",
+		State:     state,
+	}
 }
