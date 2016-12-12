@@ -36,6 +36,19 @@ const (
 	Available
 )
 
+func (s ConnectionStatus) String() string {
+	switch s {
+	case Unavailable:
+		return "unavailable"
+	case Connecting:
+		return "connecting"
+	case Available:
+		return "available"
+	default:
+		return "?"
+	}
+}
+
 // Status holds all the information about a peer's state that would be useful to Subscribers
 type Status struct {
 	// Current number of pending requests on this peer
