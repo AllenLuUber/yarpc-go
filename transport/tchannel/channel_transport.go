@@ -22,7 +22,6 @@ package tchannel
 
 import (
 	"fmt"
-	"log"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/tchannel-go"
 )
@@ -35,7 +34,7 @@ import (
 // A future version of YARPC will add a NewTransport constructor that returns
 // a transport suitable for custom peer selection.
 func NewChannelTransport(opts ...TransportOption) *ChannelTransport {
-	log.Printf("inside the yarpc testing\n")
+	fmt.Printf("inside the yarpc testing\n")
 	var config transportConfig
 	config.tracer = opentracing.GlobalTracer()
 	for _, opt := range opts {
